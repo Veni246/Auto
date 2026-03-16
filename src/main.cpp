@@ -17,13 +17,14 @@ void setup() {
 }
 
 void loop() {
+  // Vorwärts
   digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
   digitalWrite(MOTOR_LEFT_BACKWARD, LOW);
   digitalWrite(MOTOR_RIGHT_FORWARD, HIGH);
   digitalWrite(MOTOR_RIGHT_BACKWORD, LOW);
 
-  analogWrite(MOTOR_LEFT_SPEED, 255);
-  analogWrite(MOTOR_RIGHT_SPEED, 255);
+  analogWrite(MOTOR_LEFT_SPEED, 170);
+  analogWrite(MOTOR_RIGHT_SPEED, 170);
 
   delay(1000);
 
@@ -31,7 +32,7 @@ void loop() {
   analogWrite(MOTOR_LEFT_SPEED, 0);
   analogWrite(MOTOR_RIGHT_SPEED, 0);
 
-  delay(200);
+  delay(500);
 
   // Rückwärts
   digitalWrite(MOTOR_LEFT_FORWARD, LOW);
@@ -39,8 +40,8 @@ void loop() {
   digitalWrite(MOTOR_RIGHT_FORWARD, LOW);
   digitalWrite(MOTOR_RIGHT_BACKWORD, HIGH);
 
-  analogWrite(MOTOR_LEFT_SPEED, 200);
-  analogWrite(MOTOR_RIGHT_SPEED, 200);
+  analogWrite(MOTOR_LEFT_SPEED, 170);
+  analogWrite(MOTOR_RIGHT_SPEED, 170);
 
   delay(1000);
 
@@ -48,5 +49,5 @@ void loop() {
   analogWrite(MOTOR_LEFT_SPEED, 0);
   analogWrite(MOTOR_RIGHT_SPEED, 0);
 
-  delay(200);
+  delay(500);
   }
