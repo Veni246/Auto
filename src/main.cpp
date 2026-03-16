@@ -1,18 +1,52 @@
 #include <Arduino.h>
 
-// put function declarations here:
-int myFunction(int, int);
+const byte MOTOR_LEFT_SPEED = 9;
+const byte MOTOR_LEFT_FORWARD = 4;
+const byte MOTOR_LEFT_BACKWARD = 7;
+const byte MOTOR_RIGHT_SPEED = 10;
+const byte MOTOR_RIGHT_FORWARD = 8;
+const byte MOTOR_RIGHT_BACKWORD = 12;
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  pinMode(MOTOR_LEFT_SPEED, OUTPUT);
+  pinMode(MOTOR_LEFT_FORWARD, OUTPUT);
+  pinMode(MOTOR_LEFT_BACKWARD, OUTPUT);
+  pinMode(MOTOR_RIGHT_SPEED, OUTPUT);
+  pinMode(MOTOR_RIGHT_FORWARD, OUTPUT);
+  pinMode(MOTOR_RIGHT_BACKWORD, OUTPUT);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
+  digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
+  digitalWrite(MOTOR_LEFT_BACKWARD, LOW);
+  digitalWrite(MOTOR_RIGHT_FORWARD, HIGH);
+  digitalWrite(MOTOR_RIGHT_BACKWORD, LOW);
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
-}
+  analogWrite(MOTOR_LEFT_SPEED, 255);
+  analogWrite(MOTOR_RIGHT_SPEED, 255);
+
+  delay(1000);
+
+  // Stop
+  analogWrite(MOTOR_LEFT_SPEED, 0);
+  analogWrite(MOTOR_RIGHT_SPEED, 0);
+
+  delay(200);
+
+  // Rückwärts
+  digitalWrite(MOTOR_LEFT_FORWARD, LOW);
+  digitalWrite(MOTOR_LEFT_BACKWARD, HIGH);
+  digitalWrite(MOTOR_RIGHT_FORWARD, LOW);
+  digitalWrite(MOTOR_RIGHT_BACKWORD, HIGH);
+
+  analogWrite(MOTOR_LEFT_SPEED, 200);
+  analogWrite(MOTOR_RIGHT_SPEED, 200);
+
+  delay(1000);
+
+  // Stop
+  analogWrite(MOTOR_LEFT_SPEED, 0);
+  analogWrite(MOTOR_RIGHT_SPEED, 0);
+
+  delay(200);
+  }
