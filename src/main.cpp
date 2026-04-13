@@ -1,64 +1,223 @@
+/*
+ * Klasse:   6AAELI
+ *
+ */
+
+// ===== INCLUDES =====
 #include <Arduino.h>
 
-const byte MOTOR_LEFT_SPEED = 9;
-const byte MOTOR_LEFT_FORWARD = 7;
-const byte MOTOR_LEFT_BACKWARD = 4;
-const byte MOTOR_RIGHT_SPEED = 10;
-const byte MOTOR_RIGHT_FORWARD = 12;
-const byte MOTOR_RIGHT_BACKWORD = 8;
+void checkButtons();
+void readSensors();
+void processStateMachine();
+void driveForward();
+void driveBackward();
+void forward(int speed);
+void backward(int speed);
+void stop();
+void printStatus();
 
-const int IR_SENSOR_FRONT_LEFT = A0;
+
+// ===== PIN-DEFINITIONEN =====
+#define IR_FRONT         A0    
+#define IR_RIGHT         A2  
+#define IR_LEFT          A1 
+
+#define START_BUTTON      1     
+#define STOP_BUTTON       0    
+
+#define MOTOR_R_SPEED     10
+#define MOTOR_R_FWD       12
+#define MOTOR_R_BWD       8
+
+#define MOTOR_L_SPEED     9
+#define MOTOR_L_FWD       7
+#define MOTOR_L_BWD       4
+
+// ===== IR-SENSOR KALIBRIERPARAMETER =====
+// Formel: laenge [cm] = m' / (raw + d') - k  (aus Excelberechnung)
+const float PARAM_M_FRONT   = 10;
+const float PARAM_D_FRONT   = -0.0761905;
+const float PARAM_K_FRONT   = 14625;
+
+const float PARAM_M_RIGHT   = 5;
+const float PARAM_D_RIGHT   = -0.1538462;
+const float PARAM_K_RIGHT   = 7194.642857;
+
+const float PARAM_M_LEFT    = 5;
+const float PARAM_D_LEFT    = 1.076923077;
+const float PARAM_K_LEFT    = 7012.5;
+
+const uint16_t FRONT_STOP      = 30; 
+const uint16_t FRONT_CLEAR     = 50;
+const uint16_t TARGET_DIST     = 35;
+
+const uint8_t BASE_SPEED = 180;
+const uint8_t MAX_SPEED = 255;
+
+/*
+ * Zustandsübergänge:
+ *   STOPP  --[Start-Button]--> FORWARD
+ *   FORWARD --[ir_front < FRONT_STOP]--> BACKWARD
+ *   FORWARD --[Stop-Button]--> STOPP
+ *   BACKWARD --[ir_front >= FRONT_CLEAR]--> FORWARD
+ *   BACKWARD --[Stop-Button]--> STOPP
+ */
+enum State { STOPP, FORWARD, BACKWARD };
+
+// ===== GLOBALE VARIABLEN =====
+State state = STOPP;
+
+uint16_t ir_front = 70, ir_right = 35, ir_left = 35;
+uint16_t ir_front_prev = 70, ir_right_prev = 35, ir_left_prev = 35;
+
+int spd_left  = 0;   // aktuell gesetzte Motorgeschwindigkeit links
+int spd_right = 0;   // aktuell gesetzte Motorgeschwindigkeit rechts
+
+unsigned long previous_millis_20ms  = 0;
+unsigned long previous_millis_100ms = 0;
 
 
+// ===== SETUP =====
 void setup() {
   Serial.begin(115200);
-  pinMode(MOTOR_LEFT_SPEED, OUTPUT);
-  pinMode(MOTOR_LEFT_FORWARD, OUTPUT);
-  pinMode(MOTOR_LEFT_BACKWARD, OUTPUT);
-  pinMode(MOTOR_RIGHT_SPEED, OUTPUT);
-  pinMode(MOTOR_RIGHT_FORWARD, OUTPUT);
-  pinMode(MOTOR_RIGHT_BACKWORD, OUTPUT);
-  pinMode(IR_SENSOR_FRONT_LEFT, INPUT);
+
+  pinMode(IR_FRONT, INPUT);
+  pinMode(IR_RIGHT, INPUT);
+  pinMode(IR_LEFT, INPUT);
+  pinMode(START_BUTTON, INPUT_PULLUP);
+  pinMode(STOP_BUTTON, INPUT_PULLUP);
+
+  pinMode(MOTOR_R_SPEED, OUTPUT);
+  pinMode(MOTOR_R_FWD, OUTPUT);
+  pinMode(MOTOR_R_BWD, OUTPUT);
+  pinMode(MOTOR_L_SPEED, OUTPUT);
+  pinMode(MOTOR_L_FWD, OUTPUT);
+  pinMode(MOTOR_L_BWD, OUTPUT);
+
+  stop();
+  Serial.println("Bereit. Start-Taste druecken.");
 }
 
+
+// ===== LOOP =====
 void loop() {
-  const int val= analogRead(A0);
-  Serial.println(val);
 
-  delay(100);
-/*
-  // Vorwärts
-  digitalWrite(MOTOR_LEFT_FORWARD, HIGH);
-  digitalWrite(MOTOR_LEFT_BACKWARD, LOW);
-  digitalWrite(MOTOR_RIGHT_FORWARD, HIGH);
-  digitalWrite(MOTOR_RIGHT_BACKWORD, LOW);
+  checkButtons();
 
-  analogWrite(MOTOR_LEFT_SPEED, 170);
-  analogWrite(MOTOR_RIGHT_SPEED, 170);
+  if (millis() - previous_millis_20ms >= 20) {
+    previous_millis_20ms = millis();
+    readSensors();
+    processStateMachine();
+  }
 
-  delay(1000);
+  if (millis() - previous_millis_100ms >= 100) {
+    previous_millis_100ms = millis();
+    printStatus();
+  }
+}
 
-  // Stop
-  analogWrite(MOTOR_LEFT_SPEED, 0);
-  analogWrite(MOTOR_RIGHT_SPEED, 0);
 
-  delay(500);
+void readSensors() {
+  uint16_t raw, new_val;
 
-  // Rückwärts
-  digitalWrite(MOTOR_LEFT_FORWARD, LOW);
-  digitalWrite(MOTOR_LEFT_BACKWARD, HIGH);
-  digitalWrite(MOTOR_RIGHT_FORWARD, LOW);
-  digitalWrite(MOTOR_RIGHT_BACKWORD, HIGH);
+  ir_front_prev = ir_front;
+  ir_right_prev = ir_right;
+  ir_left_prev  = ir_left;
 
-  analogWrite(MOTOR_LEFT_SPEED, 170);
-  analogWrite(MOTOR_RIGHT_SPEED, 170);
+  raw     = analogRead(IR_FRONT);
+  new_val = (uint16_t)(PARAM_M_FRONT / (raw + PARAM_D_FRONT)) - PARAM_K_FRONT;
+  if(new_val > 150) new_val = 151;      // Maximalwert begrenzen
+  else if(new_val < 20) new_val = 19;   // Minimalwert begrenzen
 
-  delay(1000);
+  ir_front = (new_val + ir_front_prev) / 2;  // Glättung
 
-  // Stop
-  analogWrite(MOTOR_LEFT_SPEED, 0);
-  analogWrite(MOTOR_RIGHT_SPEED, 0);
+  raw     = analogRead(IR_RIGHT);
+  new_val = (uint16_t)(PARAM_M_RIGHT / (raw + PARAM_D_RIGHT)) - PARAM_K_RIGHT;
+  if(new_val > 80) new_val = 81;        // Maximalwert begrenzen
+  else if(new_val < 10) new_val = 9;     // Minimalwert begrenzen
+  
+  ir_right = (new_val + ir_right_prev) / 2;
+  
+  raw     = analogRead(IR_LEFT);
+  new_val = (uint16_t)(PARAM_M_LEFT / (raw + PARAM_D_LEFT)) - PARAM_K_LEFT;
+  if(new_val > 80) new_val = 81;        // Maximalwert begrenzen
+  else if(new_val < 10) new_val = 9;     // Minimalwert begrenzen
 
-  delay(500);
-  */
+  ir_left = (new_val + ir_left_prev) / 2;
+}
+
+
+void processStateMachine() {
+  switch (state) {
+    case STOPP:
+      stop();
+      break;
+    case FORWARD:
+      driveForward();
+      break;
+    case BACKWARD:
+      driveBackward();
+      break;
+  }
+}
+
+void driveForward() {
+  forward(BASE_SPEED);
+ 
+  if (ir_front < FRONT_STOP) {
+    state = BACKWARD;
+  }
+
+}
+
+void driveBackward() {
+  backward(BASE_SPEED);
+
+  if (ir_front >= FRONT_CLEAR) {
+    state = FORWARD;
+  }
+}
+
+
+void checkButtons() {
+  if (digitalRead(START_BUTTON) == LOW && state == STOPP)
+    state = FORWARD;
+  if (digitalRead(STOP_BUTTON) == LOW)
+    state = STOPP;
+}
+
+
+void forward(int speed) {
+  digitalWrite(MOTOR_L_FWD, HIGH);
+  digitalWrite(MOTOR_L_BWD, LOW);
+  digitalWrite(MOTOR_R_FWD, HIGH);
+  digitalWrite(MOTOR_R_BWD, LOW);
+  analogWrite(MOTOR_L_SPEED, speed);
+  analogWrite(MOTOR_R_SPEED, speed);
+}
+
+void backward(int speed) {
+
+}
+
+
+void stop() {
+
+}
+
+
+// ===== HILFSFUNKTIONEN =====
+void printStatus() {
+  Serial.print("F: \t"); Serial.print(ir_front);
+  Serial.print(" R: \t"); Serial.print(ir_right);
+  Serial.print(" L: \t"); Serial.print(ir_left);
+  Serial.print("  spd_L= \t"); Serial.print(spd_left);
+  Serial.print(" spd_R= \t"); Serial.print(spd_right);
+  Serial.print("  [");
+  switch (state) {
+    case STOPP:    Serial.print("STOPP");    break;
+    case FORWARD:  Serial.print("FORWARD");  break;
+    case BACKWARD: Serial.print("BACKWARD"); break;
+  }
+  Serial.println("]");
 }
