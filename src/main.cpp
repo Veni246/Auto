@@ -1,6 +1,6 @@
 /*
  * Klasse:   6AAELI
- *
+ * Datum:     20.04.2026
  */
 
 // ===== INCLUDES =====
@@ -11,7 +11,7 @@ void readSensors();
 void processStateMachine();
 void driveForward();
 void driveBackward();
-void forward(int speed);
+void forward(int spd_left, int spd_right);
 void backward(int speed);
 void stop();
 void printStatus();
@@ -19,11 +19,11 @@ void printStatus();
 
 // ===== PIN-DEFINITIONEN =====
 #define IR_FRONT         A0    
-#define IR_RIGHT         A2  
-#define IR_LEFT          A1 
+#define IR_RIGHT         A1  
+#define IR_LEFT          A2 
 
-#define START_BUTTON      1     
-#define STOP_BUTTON       0    
+#define START_BUTTON      3     
+#define STOP_BUTTON       2    
 
 #define MOTOR_R_SPEED     10
 #define MOTOR_R_FWD       12
@@ -35,19 +35,19 @@ void printStatus();
 
 // ===== IR-SENSOR KALIBRIERPARAMETER =====
 // Formel: laenge [cm] = m' / (raw + d') - k  (aus Excelberechnung)
-const float PARAM_M_FRONT   = 10;
+const float PARAM_K_FRONT   = 10;
 const float PARAM_D_FRONT   = -0.0761905;
-const float PARAM_K_FRONT   = 14625;
+const float PARAM_M_FRONT   = 14625;
 
-const float PARAM_M_RIGHT   = 5;
+const float PARAM_K_RIGHT   = 5;
 const float PARAM_D_RIGHT   = -0.1538462;
-const float PARAM_K_RIGHT   = 7194.642857;
+const float PARAM_M_RIGHT   = 7194.642857;
 
-const float PARAM_M_LEFT    = 5;
+const float PARAM_K_LEFT    = 5;
 const float PARAM_D_LEFT    = 1.076923077;
-const float PARAM_K_LEFT    = 7012.5;
+const float PARAM_M_LEFT    = 7012.5;
 
-const uint16_t FRONT_STOP      = 30; 
+const uint16_t FRONT_STOP      = 20; 
 const uint16_t FRONT_CLEAR     = 50;
 const uint16_t TARGET_DIST     = 35;
 
@@ -153,7 +153,7 @@ void processStateMachine() {
       stop();
       break;
     case FORWARD:
-      driveForward();
+      driveForward(130, 130);
       break;
     case BACKWARD:
       driveBackward();
@@ -161,16 +161,30 @@ void processStateMachine() {
   }
 }
 
-void driveForward() {
-  forward(BASE_SPEED);
- 
+void driveForward(int spd_left, int spd_right) {
+
+  digitalWrite(MOTOR_L_FWD, HIGH);
+  digitalWrite(MOTOR_L_BWD, LOW);
+  digitalWrite(MOTOR_R_FWD, HIGH);
+  digitalWrite(MOTOR_R_BWD, LOW);
+  analogWrite(MOTOR_L_SPEED, spd_left);
+  analogWrite(MOTOR_R_SPEED, spd_right);
+
   if (ir_front < FRONT_STOP) {
     state = BACKWARD;
   }
+  if (ir_left < ir_right) {
+    analogWrite(MOTOR_L_SPEED, BASE_SPEED);
+    analogWrite(MOTOR_R_SPEED, 0);
+  }
 
+  if (ir_right < ir_left) {
+    analogWrite(MOTOR_L_SPEED, 0);
+    analogWrite(MOTOR_R_SPEED, BASE_SPEED);
+  }
 }
 
-void driveBackward() {
+void driveBackward(int speed) {
   backward(BASE_SPEED);
 
   if (ir_front >= FRONT_CLEAR) {
@@ -188,6 +202,7 @@ void checkButtons() {
 
 
 void forward(int speed) {
+
   digitalWrite(MOTOR_L_FWD, HIGH);
   digitalWrite(MOTOR_L_BWD, LOW);
   digitalWrite(MOTOR_R_FWD, HIGH);
@@ -197,12 +212,22 @@ void forward(int speed) {
 }
 
 void backward(int speed) {
-
+  digitalWrite(MOTOR_L_FWD, LOW);
+  digitalWrite(MOTOR_L_BWD, HIGH);
+  digitalWrite(MOTOR_R_FWD, LOW);
+  digitalWrite(MOTOR_R_BWD, HIGH);
+  analogWrite(MOTOR_L_SPEED, speed);
+  analogWrite(MOTOR_R_SPEED, speed);
 }
 
 
 void stop() {
-
+  digitalWrite(MOTOR_L_FWD, LOW);
+  digitalWrite(MOTOR_L_BWD, LOW);
+  digitalWrite(MOTOR_R_FWD, LOW);
+  digitalWrite(MOTOR_R_BWD, LOW);
+  analogWrite(MOTOR_L_SPEED, 0);
+  analogWrite(MOTOR_R_SPEED, 0);
 }
 
 
