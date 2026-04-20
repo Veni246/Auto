@@ -11,7 +11,7 @@ void readSensors();
 void processStateMachine();
 void driveForward();
 void driveBackward();
-void forward(int speed);
+void forward();
 void backward(int speed);
 void stop();
 void printStatus();
@@ -47,11 +47,11 @@ const float PARAM_K_LEFT    = 5;
 const float PARAM_D_LEFT    = 1.076923077;
 const float PARAM_M_LEFT    = 7012.5;
 
-const uint16_t FRONT_STOP      = 20; 
+const uint16_t FRONT_STOP      = 40; 
 const uint16_t FRONT_CLEAR     = 50;
 const uint16_t TARGET_DIST     = 35;
 
-const uint8_t BASE_SPEED = 180;
+const uint8_t BASE_SPEED = 120;
 const uint8_t MAX_SPEED = 255;
 
 /*
@@ -153,7 +153,7 @@ void processStateMachine() {
       stop();
       break;
     case FORWARD:
-      driveForward(130, 130);
+      driveForward();
       break;
     case BACKWARD:
       driveBackward();
@@ -166,14 +166,14 @@ void driveForward() {
   if (ir_front < FRONT_STOP) {
     state = BACKWARD;
   }
-  if (ir_left < ir_right) {
-    spd_left = BASE_SPEED + 10;
-    spd_right = BASE_SPEED - 10;
+  if (ir_right > ir_left) {
+    spd_left = 50;
+    spd_right = BASE_SPEED;
   }
 
-  if (ir_right < ir_left) {
-    spd_left = BASE_SPEED + 10;
-    spd_right = BASE_SPEED - 10;
+  if (ir_left > ir_right) {
+    spd_left = BASE_SPEED;
+    spd_right = 50;
   }
 
   digitalWrite(MOTOR_L_FWD, HIGH);
