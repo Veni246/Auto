@@ -11,7 +11,7 @@ void readSensors();
 void processStateMachine();
 void driveForward();
 void driveBackward();
-void forward(int spd_left, int spd_right);
+void forward(int speed);
 void backward(int speed);
 void stop();
 void printStatus();
@@ -161,7 +161,20 @@ void processStateMachine() {
   }
 }
 
-void driveForward(int spd_left, int spd_right) {
+void driveForward() {
+
+  if (ir_front < FRONT_STOP) {
+    state = BACKWARD;
+  }
+  if (ir_left < ir_right) {
+    spd_left = BASE_SPEED + 10;
+    spd_right = BASE_SPEED - 10;
+  }
+
+  if (ir_right < ir_left) {
+    spd_left = BASE_SPEED + 10;
+    spd_right = BASE_SPEED - 10;
+  }
 
   digitalWrite(MOTOR_L_FWD, HIGH);
   digitalWrite(MOTOR_L_BWD, LOW);
@@ -169,22 +182,9 @@ void driveForward(int spd_left, int spd_right) {
   digitalWrite(MOTOR_R_BWD, LOW);
   analogWrite(MOTOR_L_SPEED, spd_left);
   analogWrite(MOTOR_R_SPEED, spd_right);
-
-  if (ir_front < FRONT_STOP) {
-    state = BACKWARD;
-  }
-  if (ir_left < ir_right) {
-    analogWrite(MOTOR_L_SPEED, BASE_SPEED);
-    analogWrite(MOTOR_R_SPEED, 0);
-  }
-
-  if (ir_right < ir_left) {
-    analogWrite(MOTOR_L_SPEED, 0);
-    analogWrite(MOTOR_R_SPEED, BASE_SPEED);
-  }
 }
 
-void driveBackward(int speed) {
+void driveBackward() {
   backward(BASE_SPEED);
 
   if (ir_front >= FRONT_CLEAR) {
@@ -200,7 +200,7 @@ void checkButtons() {
     state = STOPP;
 }
 
-
+/*
 void forward(int speed) {
 
   digitalWrite(MOTOR_L_FWD, HIGH);
@@ -210,7 +210,7 @@ void forward(int speed) {
   analogWrite(MOTOR_L_SPEED, speed);
   analogWrite(MOTOR_R_SPEED, speed);
 }
-
+*/
 void backward(int speed) {
   digitalWrite(MOTOR_L_FWD, LOW);
   digitalWrite(MOTOR_L_BWD, HIGH);
