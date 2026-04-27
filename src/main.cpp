@@ -1,6 +1,14 @@
 /*
  * Klasse:   6AAELI
- * Datum:     20.04.2026
+ *
+ * PIN-BELEGUNG:
+ *   IR vorne  (GP2Y0A02YK, 20-150cm)  → A0
+ *   IR rechts (GP2Y0A21YK, 10-80cm)   → A1
+ *   IR links  (GP2Y0A21YK, 10-80cm)   → A2
+ *   Start-Button                       → Pin 11 (INPUT_PULLUP)
+ *   Stop-Button                        → Pin 10 (INPUT_PULLUP)
+ *   Motor rechts: Speed=5, FWD=4, BWD=9
+ *   Motor links:  Speed=6, FWD=7, BWD=8
  */
 
 // ===== INCLUDES =====
@@ -11,27 +19,27 @@ void readSensors();
 void processStateMachine();
 void driveForward();
 void driveBackward();
-void forward();
+void forward(int speed);
 void backward(int speed);
 void stop();
 void printStatus();
 
 
 // ===== PIN-DEFINITIONEN =====
-#define IR_FRONT         A0    
-#define IR_RIGHT         A1  
-#define IR_LEFT          A2 
+#define IR_FRONT        A0
+#define IR_RIGHT        A2
+#define IR_LEFT         A1
 
-#define START_BUTTON      3     
-#define STOP_BUTTON       2    
+#define START_BUTTON    3
+#define STOP_BUTTON     2
 
-#define MOTOR_R_SPEED     10
-#define MOTOR_R_FWD       12
-#define MOTOR_R_BWD       8
+#define MOTOR_R_SPEED   10    // PWM ENA
+#define MOTOR_R_FWD     12    // IN2
+#define MOTOR_R_BWD     8    // IN1
 
-#define MOTOR_L_SPEED     9
-#define MOTOR_L_FWD       7
-#define MOTOR_L_BWD       4
+#define MOTOR_L_SPEED   9    // PWM ENB
+#define MOTOR_L_FWD     7    // IN3
+#define MOTOR_L_BWD     4    // IN4
 
 // ===== IR-SENSOR KALIBRIERPARAMETER =====
 // Formel: laenge [cm] = m' / (raw + d') - k  (aus Excelberechnung)
@@ -47,12 +55,19 @@ const float PARAM_K_LEFT    = 5;
 const float PARAM_D_LEFT    = 1.076923077;
 const float PARAM_M_LEFT    = 7012.5;
 
-const uint16_t FRONT_STOP      = 40; 
-const uint16_t FRONT_CLEAR     = 50;
-const uint16_t TARGET_DIST     = 35;
+// ===== SCHWELLWERTE =====
+const uint16_t FRONT_STOP      = 30;    // cm: Hindernis vorne → Rückwärtsfahrt
+const uint16_t FRONT_CLEAR     = 50;    // cm: Weg frei → wieder vorwärts
+const uint16_t TARGET_DIST     = 35;    // cm: Soll-Abstand zur linken Wand
 
-const uint8_t BASE_SPEED = 120;
+// ===== GESCHWINDIGKEITEN =====
+const uint8_t BASE_SPEED = 180;
 const uint8_t MAX_SPEED = 255;
+
+// ===== LENKUNGSKORREKTUR =====
+#define SIDECONTROL_FACTOR_1  0.7  // correction factor for sidecontrol in steering calculation (percentage)
+#define SIDECONTROL_FACTOR_2  0.3  // correction factor for sidecontrol in steering calculation (percentage)
+
 
 /*
  * Zustandsübergänge:
@@ -73,7 +88,7 @@ uint16_t ir_front_prev = 70, ir_right_prev = 35, ir_left_prev = 35;
 int spd_left  = 0;   // aktuell gesetzte Motorgeschwindigkeit links
 int spd_right = 0;   // aktuell gesetzte Motorgeschwindigkeit rechts
 
-unsigned long previous_millis_20ms  = 0;
+unsigned long previous_millis_40ms  = 0;
 unsigned long previous_millis_100ms = 0;
 
 
@@ -104,8 +119,8 @@ void loop() {
 
   checkButtons();
 
-  if (millis() - previous_millis_20ms >= 20) {
-    previous_millis_20ms = millis();
+  if (millis() - previous_millis_40ms >= 40) {
+    previous_millis_40ms = millis();
     readSensors();
     processStateMachine();
   }
@@ -162,18 +177,41 @@ void processStateMachine() {
 }
 
 void driveForward() {
-
   if (ir_front < FRONT_STOP) {
     state = BACKWARD;
-  }
-  if (ir_right > ir_left) {
-    spd_left = 50;
-    spd_right = BASE_SPEED;
+    return;
   }
 
-  if (ir_left > ir_right) {
-    spd_left = BASE_SPEED;
-    spd_right = 50;
+  spd_left  = BASE_SPEED;
+  spd_right = spd_left;
+
+  // Lenkungsberechnung: Die ersten beiden Fälle werden benötigt um die spezielle Situation zu erkennen, wenn das Auto in eine Ecke fährt und dann umdreht
+  if (ir_front < 70 && (ir_right > ir_left + 10))
+  {
+    spd_right = (uint8_t)(spd_right * SIDECONTROL_FACTOR_2);
+  }
+  else if (ir_front < 70 && (ir_left > ir_right + 10))
+  {
+    spd_left = (uint8_t)(spd_left * SIDECONTROL_FACTOR_2);
+  }
+  // Simple Seitenkorrektur auf der Geraden: Je weiter das Auto von der Soll-Position zur linken Wand entfernt ist, desto stärker wird die Seitenkorrektur aktiviert
+  else if (ir_left < TARGET_DIST - 1)
+  {
+    spd_right = (uint8_t)(spd_right * SIDECONTROL_FACTOR_2);
+    // Speziallfall eindeutige Rechtskurve
+    if (ir_front < 90 || ir_right >= 80)
+    {
+      spd_right = (uint8_t)(spd_right * SIDECONTROL_FACTOR_2);
+    }
+  }
+  else if (ir_left > TARGET_DIST + 1)
+  {
+    spd_left = (uint8_t)(spd_left * SIDECONTROL_FACTOR_1);
+    // Speziallfall eindeutige Linkskurve
+    if (ir_front < 90 || ir_left >= 80)
+    {
+      spd_left = (uint8_t)(spd_left * SIDECONTROL_FACTOR_2);
+    }
   }
 
   digitalWrite(MOTOR_L_FWD, HIGH);
@@ -186,7 +224,6 @@ void driveForward() {
 
 void driveBackward() {
   backward(BASE_SPEED);
-
   if (ir_front >= FRONT_CLEAR) {
     state = FORWARD;
   }
@@ -200,9 +237,8 @@ void checkButtons() {
     state = STOPP;
 }
 
-/*
-void forward(int speed) {
 
+void forward(int speed) {
   digitalWrite(MOTOR_L_FWD, HIGH);
   digitalWrite(MOTOR_L_BWD, LOW);
   digitalWrite(MOTOR_R_FWD, HIGH);
@@ -210,7 +246,7 @@ void forward(int speed) {
   analogWrite(MOTOR_L_SPEED, speed);
   analogWrite(MOTOR_R_SPEED, speed);
 }
-*/
+
 void backward(int speed) {
   digitalWrite(MOTOR_L_FWD, LOW);
   digitalWrite(MOTOR_L_BWD, HIGH);
@@ -228,6 +264,7 @@ void stop() {
   digitalWrite(MOTOR_R_BWD, LOW);
   analogWrite(MOTOR_L_SPEED, 0);
   analogWrite(MOTOR_R_SPEED, 0);
+  spd_left = spd_right = 0;
 }
 
 
